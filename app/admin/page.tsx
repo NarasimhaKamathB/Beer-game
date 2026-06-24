@@ -99,7 +99,7 @@ export default function AdminPage() {
         <label className="block text-xs font-semibold text-gray-600 mb-1">{label}</label>
         <input
           type="number" min={min} step={step}
-          value={(cfg as Record<string, unknown>)[key] as number}
+          value={(cfg as unknown as Record<string, unknown>)[key] as number}
           onChange={e => setCfg(c => ({ ...c, [key]: parseFloat(e.target.value) || 0 }))}
           className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
         />
