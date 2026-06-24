@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Beer Game — Tutorial</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{width:100%;height:100%;overflow:hidden;background:#FFFBEB}
+  body{
+    width:1280px;height:720px;overflow:hidden;
+    background:#FFFBEB;
+    font-family:'Inter',system-ui,sans-serif;
+    user-select:none;
+    transform-origin:top left;
+    position:absolute;
+  }
+
+  /* ── Progress bar ── */
+  #progress{
+    position:absolute;bottom:0;left:0;height:5px;
+    background:#F59E0B;z-index:999;
+    transition:width 0.1s linear;
+  }
+
+  /* ── Play overlay ── */
+  #overlay{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:16px;
+    background:rgba(20,10,0,0.6);z-index:998;cursor:pointer;
+  }
+  #overlay .play-btn{
+    width:110px;height:110px;border-radius:50%;
+    background:#F59E0B;display:flex;align-items:center;justify-content:center;
+    font-size:44px;color:#fff;box-shadow:0 8px 32px rgba(0,0,0,0.35);
+    transition:transform 0.15s ease;
+  }
+  #overlay .play-btn:hover{transform:scale(1.08)}
+  #overlay .play-label{color:#FFF8E7;font-size:16px;font-weight:600;letter-spacing:.03em}
+
+  /* ── Pause button (shows during playback) ── */
+  #pause-btn{
+    position:absolute;bottom:14px;right:16px;z-index:997;
+    background:rgba(20,10,0,0.5);border:1.5px solid rgba(255,255,255,0.2);
+    color:#FFF8E7;font-size:13px;font-weight:700;
+    padding:6px 14px;border-radius:20px;cursor:pointer;
+    display:none;align-items:center;gap:6px;
+    transition:background 0.15s ease;
+  }
+  #pause-btn:hover{background:rgba(20,10,0,0.75)}
+  #pause-icon{font-size:14px}
+
+  /* ── Paused overlay ── */
+  #pause-overlay{
+    position:absolute;inset:0;display:none;
+    align-items:center;justify-content:center;
+    background:rgba(20,10,0,0.45);z-index:996;cursor:pointer;
+  }
+  #pause-overlay .resume-btn{
+    width:90px;height:90px;border-radius:50%;
+    background:#F59E0B;display:flex;align-items:center;justify-content:center;
+    font-size:36px;color:#fff;box-shadow:0 6px 24px rgba(0,0,0,0.3);
+  }
+
+  /* ── Slides ── */
+  .slide{
+    position:absolute;inset:0;opacity:0;pointer-events:none;
+    transition:opacity 0.55s ease;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:50px 70px;
+  }
+  .slide.active{opacity:1;pointer-events:all}
+
+  /* ── Typography ── */
+  h1{font-size:54px;font-weight:900;color:#1A0A00;line-height:1.1;text-align:center}
+  h2{font-size:40px;font-weight:800;color:#1A0A00;line-height:1.15;text-align:center}
+  .sub{font-size:22px;color:#5C3A00;margin-top:14px;text-align:center;max-width:880px;line-height:1.45}
+  .amber{color:#D97706}
+  .red{color:#DC2626}
+  .green{color:#059669}
+  .blue{color:#2563EB}
+
+  /* ── Supply chain ── */
+  .chain{display:flex;align-items:center;gap:0;margin-top:28px}
+  .role{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    width:160px;min-height:86px;border-radius:14px;
+    font-weight:700;color:#fff;padding:10px 8px;
+    transform:scale(0.4) translateY(30px);opacity:0;
+    transition:transform 0.5s cubic-bezier(.34,1.56,.64,1),opacity 0.4s ease;
+  }
+  .role.pop{transform:scale(1) translateY(0);opacity:1}
+  .role .ricon{font-size:28px}
+  .role .rlabel{font-size:15px;margin-top:3px;font-weight:700}
+
+  .r-mfg{background:linear-gradient(135deg,#7C3AED,#6D28D9)}
+  .r-dst{background:linear-gradient(135deg,#2563EB,#1D4ED8)}
+  .r-whl{background:linear-gradient(135deg,#059669,#047857)}
+  .r-rtl{background:linear-gradient(135deg,#D97706,#B45309)}
+
+  .connector{
+    display:flex;flex-direction:column;align-items:center;
+    width:62px;flex-shrink:0;opacity:0;transition:opacity 0.4s ease;
+  }
+  .connector.show{opacity:1}
+  .arr-label{font-size:10px;font-weight:700;white-space:nowrap;margin:2px 0}
+  .arr-line{width:58px;height:14px}
+  .arr-line svg{width:100%;height:100%}
+
+  /* ── Lead-time chain (slide 2) ── */
+  .lt-chain{display:flex;align-items:center;justify-content:center;margin-top:28px;gap:0}
+  .lt-badge{
+    font-size:12px;font-weight:800;color:#D97706;
+    background:#FEF3C7;border-radius:8px;padding:3px 10px;white-space:nowrap;
+  }
+  .lt-arrow{width:80px;display:flex;flex-direction:column;align-items:center;gap:4px}
+
+  /* ── Order flow (slide 3) ── */
+  .order-flow{
+    display:flex;align-items:center;justify-content:center;
+    margin-top:20px;gap:0;
+  }
+  .order-node{
+    width:130px;border-radius:12px;padding:12px 8px;text-align:center;
+    font-weight:700;color:#fff;
+    opacity:0;transform:scale(0.85);
+    transition:opacity 0.45s ease,transform 0.45s ease;
+  }
+  .order-node.show{opacity:1;transform:scale(1)}
+  .order-qty{font-size:28px;font-weight:900}
+  .order-lbl{font-size:12px;margin-top:2px;opacity:0.85}
+  .order-arr{
+    width:72px;display:flex;flex-direction:column;align-items:center;gap:2px;
+    opacity:0;transition:opacity 0.4s ease 0.15s;
+  }
+  .order-arr.show{opacity:1}
+  .order-arr .dir{font-size:10px;font-weight:700;color:#D97706}
+
+  /* ── Bullwhip chart (slide 4) ── */
+  .bw-wrap{
+    display:flex;gap:28px;align-items:flex-end;justify-content:center;
+    margin-top:24px;
+  }
+  .bw-col{
+    display:flex;flex-direction:column;align-items:center;gap:8px;
+    opacity:0;transform:translateY(20px);
+    transition:opacity 0.5s ease,transform 0.5s ease;
+  }
+  .bw-col.show{opacity:1;transform:translateY(0)}
+  .bw-bars{
+    display:flex;gap:4px;align-items:flex-end;height:180px;
+  }
+  .bw-bar{
+    width:26px;border-radius:6px 6px 0 0;
+    transition:height 0.6s cubic-bezier(.34,1.2,.64,1);
+  }
+  .bw-label{font-size:13px;font-weight:700;color:#1A0A00;text-align:center}
+  .bw-sub{font-size:10px;color:#6B7280;text-align:center;max-width:90px;line-height:1.3}
+
+  /* ── Cost cards (slide 5) ── */
+  .cost-row{display:flex;gap:32px;margin-top:24px;justify-content:center}
+  .cost-card{
+    background:#fff;border-radius:20px;padding:28px 24px;
+    text-align:center;width:260px;
+    box-shadow:0 4px 24px rgba(0,0,0,0.08);
+    border-top:5px solid transparent;
+    opacity:0;transform:translateY(24px) scale(0.96);
+    transition:opacity 0.5s ease,transform 0.5s ease;
+  }
+  .cost-card.show{opacity:1;transform:translateY(0) scale(1)}
+  .cost-icon{font-size:38px;margin-bottom:10px}
+  .cost-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9CA3AF}
+  .cost-val{font-size:40px;font-weight:900;margin:8px 0}
+  .cost-desc{font-size:14px;color:#6B7280;line-height:1.45}
+
+  /* ── Title card (slide 6) ── */
+  .title-wrap{
+    background:linear-gradient(135deg,#1A0A00,#2D1500);
+    border-radius:28px;padding:48px 80px;text-align:center;
+    width:100%;box-shadow:0 12px 48px rgba(26,10,0,0.3);
+  }
+  .title-wrap h1{color:#FFFBEB;font-size:70px}
+  .title-wrap .tagline{color:#F59E0B;font-size:22px;margin-top:10px;font-weight:600}
+  .pill-row{display:flex;gap:16px;justify-content:center;margin-top:28px;flex-wrap:wrap}
+  .pill{
+    background:rgba(255,251,235,0.1);border:1.5px solid rgba(255,251,235,0.2);
+    border-radius:10px;padding:10px 18px;color:#FFFBEB;
+    font-size:14px;font-weight:700;letter-spacing:.03em;
+    opacity:0;transform:translateY(10px);
+    transition:opacity 0.4s ease,transform 0.4s ease;
+  }
+  .pill.show{opacity:1;transform:translateY(0)}
+
+  /* ── Animated beer mug ── */
+  @keyframes float{
+    0%,100%{transform:translateY(0)}
+    50%{transform:translateY(-8px)}
+  }
+  .beer-float{animation:float 2.4s ease-in-out infinite}
+
+  /* ── Traveling beer mug ── */
+  @keyframes travel-right{
+    0%{transform:translateX(0);opacity:0}
+    8%{opacity:1}
+    92%{opacity:1}
+    100%{transform:translateX(var(--td));opacity:0}
+  }
+  @keyframes travel-left{
+    0%{transform:translateX(0);opacity:0}
+    8%{opacity:1}
+    92%{opacity:1}
+    100%{transform:translateX(var(--tdn));opacity:0}
+  }
+  .traveler{position:absolute;font-size:18px;pointer-events:none;animation-timing-function:linear;animation-fill-mode:both}
+  .chain-wrap{position:relative;width:100%}
+</style>
+<script>
+  /* ── Scale to fit any screen ── */
+  function scaleToFit(){
+    var s=Math.min(window.innerWidth/1280,window.innerHeight/720);
+    var l=(window.innerWidth-1280*s)/2, t=(window.innerHeight-720*s)/2;
+    document.body.style.transform='scale('+s+')';
+    document.body.style.left=l+'px';
+    document.body.style.top=t+'px';
+  }
+  window.addEventListener('resize',scaleToFit);
+  document.addEventListener('DOMContentLoaded',scaleToFit);
+</script>
+</head>
+<body>
+
+<div id="overlay" onclick="startVideo()">
+  <div class="play-btn">▶</div>
+  <div class="play-label">Click to watch the tutorial (~62s)</div>
+</div>
+
+<div id="pause-overlay" onclick="togglePause()">
+  <div class="resume-btn">▶</div>
+</div>
+
+<div id="pause-btn" onclick="togglePause()">
+  <span id="pause-icon">⏸</span>
+  <span id="pause-text">Pause</span>
+</div>
+
+<div id="progress" style="width:0"></div>
+
+<!-- ════════════════════════════════════════════════
+     SLIDE 1  0–8s   The Supply Chain
+════════════════════════════════════════════════ -->
+<div class="slide" id="s1">
+  <h1>🍺 Beer travels through <span class="amber">four hands</span>.</h1>
+  <p class="sub">From the factory floor to the customer's glass — each stage is played by a <strong>real person on your team.</strong></p>
+
+  <div class="chain" style="margin-top:32px">
+    <div class="role r-mfg" id="r0"><div class="ricon">🏭</div><div class="rlabel">Manufacturer</div></div>
+    <div class="connector" id="c0">
+      <div class="arr-label amber">→ ships →</div>
+      <div class="arr-line"><svg viewBox="0 0 58 14"><line x1="0" y1="7" x2="48" y2="7" stroke="#D97706" stroke-width="2.5"/><polygon points="48,3 58,7 48,11" fill="#D97706"/></svg></div>
+    </div>
+    <div class="role r-dst" id="r1"><div class="ricon">📦</div><div class="rlabel">Distributor</div></div>
+    <div class="connector" id="c1">
+      <div class="arr-label amber">→ ships →</div>
+      <div class="arr-line"><svg viewBox="0 0 58 14"><line x1="0" y1="7" x2="48" y2="7" stroke="#D97706" stroke-width="2.5"/><polygon points="48,3 58,7 48,11" fill="#D97706"/></svg></div>
+    </div>
+    <div class="role r-whl" id="r2"><div class="ricon">🏪</div><div class="rlabel">Wholesaler</div></div>
+    <div class="connector" id="c2">
+      <div class="arr-label amber">→ ships →</div>
+      <div class="arr-line"><svg viewBox="0 0 58 14"><line x1="0" y1="7" x2="48" y2="7" stroke="#D97706" stroke-width="2.5"/><polygon points="48,3 58,7 48,11" fill="#D97706"/></svg></div>
+    </div>
+    <div class="role r-rtl" id="r3"><div class="ricon">🛍️</div><div class="rlabel">Retailer</div></div>
+    <div class="connector" id="c3">
+      <div class="arr-label" style="color:#D97706">→ sells →</div>
+      <div class="arr-line"><svg viewBox="0 0 58 14"><line x1="0" y1="7" x2="48" y2="7" stroke="#D97706" stroke-width="2.5"/><polygon points="48,3 58,7 48,11" fill="#D97706"/></svg></div>
+    </div>
+    <div class="role" id="r4" style="background:linear-gradient(135deg,#FBBF24,#F59E0B);width:110px">
+      <div class="ricon">👤</div><div class="rlabel" style="font-size:13px">Customer</div>
+    </div>
+  </div>
+
+  <p class="sub" id="s1b" style="margin-top:28px;font-size:20px;opacity:0;transition:opacity 0.6s ease">
+    Every week, each player decides: <strong>how many cases to order</strong> from the stage above them.
+  </p>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     SLIDE 2  8–20s  Lead times
+════════════════════════════════════════════════ -->
+<div class="slide" id="s2">
+  <h2>⏱ Beer takes time to <span class="amber">travel.</span></h2>
+  <p class="sub">When you place an order, goods don't arrive instantly.<br>Each link has a <strong>shipping lead time</strong> — and production takes even longer.</p>
+
+  <div class="lt-chain" id="lt-chain" style="margin-top:32px">
+    <div style="text-align:center">
+      <div class="role r-mfg pop" style="margin:0 auto"><div class="ricon">🏭</div><div class="rlabel">Manufacturer</div></div>
+      <div style="font-size:12px;color:#7C3AED;font-weight:700;margin-top:6px">Produces beer</div>
+    </div>
+
+    <div class="lt-arrow" id="lt0" style="opacity:0;transition:opacity 0.4s ease">
+      <div class="lt-badge">⏱ 2 weeks</div>
+      <svg viewBox="0 0 80 18" width="80" height="18" style="margin-top:4px">
+        <line x1="0" y1="9" x2="68" y2="9" stroke="#D97706" stroke-width="2.5"/>
+        <polygon points="68,5 80,9 68,13" fill="#D97706"/>
+      </svg>
+      <div style="font-size:10px;color:#9CA3AF;margin-top:2px">production pipeline</div>
+    </div>
+
+    <div style="text-align:center">
+      <div class="role r-dst pop" style="margin:0 auto"><div class="ricon">📦</div><div class="rlabel">Distributor</div></div>
+      <div style="font-size:12px;color:#2563EB;font-weight:700;margin-top:6px">Bulk storage</div>
+    </div>
+
+    <div class="lt-arrow" id="lt1" style="opacity:0;transition:opacity 0.4s ease 0.3s">
+      <div class="lt-badge">⏱ 1 week</div>
+      <svg viewBox="0 0 80 18" width="80" height="18" style="margin-top:4px">
+        <line x1="0" y1="9" x2="68" y2="9" stroke="#D97706" stroke-width="2.5"/>
+        <polygon points="68,5 80,9 68,13" fill="#D97706"/>
+      </svg>
+    </div>
+
+    <div style="text-align:center">
+      <div class="role r-whl pop" style="margin:0 auto"><div class="ricon">🏪</div><div class="rlabel">Wholesaler</div></div>
+      <div style="font-size:12px;color:#059669;font-weight:700;margin-top:6px">Regional hub</div>
+    </div>
+
+    <div class="lt-arrow" id="lt2" style="opacity:0;transition:opacity 0.4s ease 0.6s">
+      <div class="lt-badge">⏱ 1 week</div>
+      <svg viewBox="0 0 80 18" width="80" height="18" style="margin-top:4px">
+        <line x1="0" y1="9" x2="68" y2="9" stroke="#D97706" stroke-width="2.5"/>
+        <polygon points="68,5 80,9 68,13" fill="#D97706"/>
+      </svg>
+    </div>
+
+    <div style="text-align:center">
+      <div class="role r-rtl pop" style="margin:0 auto"><div class="ricon">🛍️</div><div class="rlabel">Retailer</div></div>
+      <div style="font-size:12px;color:#D97706;font-weight:700;margin-top:6px">Sells to public</div>
+    </div>
+  </div>
+
+  <div id="s2b" style="margin-top:22px;background:#FEF3C7;border-radius:14px;padding:14px 28px;text-align:center;opacity:0;transition:opacity 0.5s ease">
+    <p style="font-size:17px;color:#78350F;font-weight:600">
+      💡 You can't speed up the pipeline — you can only <strong>plan ahead</strong>.
+    </p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     SLIDE 3  20–33s  Order flow upstream
+════════════════════════════════════════════════ -->
+<div class="slide" id="s3">
+  <h2>📋 Orders travel <span class="amber">upstream</span> — opposite to beer.</h2>
+  <p class="sub">Each role sees only their immediate customer's order, then places their own order upstream. <strong>You never see the full picture.</strong></p>
+
+  <div class="order-flow" style="margin-top:24px">
+    <div class="order-node r-mfg" id="on0" style="background:linear-gradient(135deg,#7C3AED,#6D28D9)">
+      <div style="font-size:22px">🏭</div>
+      <div class="order-qty" id="oq0">?</div>
+      <div class="order-lbl">Manufacturer<br>orders</div>
+    </div>
+    <div class="order-arr" id="oa0">
+      <div class="dir">← orders ←</div>
+      <svg viewBox="0 0 72 14" width="72" height="14">
+        <line x1="72" y1="7" x2="12" y2="7" stroke="#D97706" stroke-width="2.5" stroke-dasharray="5,3"/>
+        <polygon points="12,3 0,7 12,11" fill="#D97706"/>
+      </svg>
+    </div>
+    <div class="order-node r-dst" id="on1" style="background:linear-gradient(135deg,#2563EB,#1D4ED8)">
+      <div style="font-size:22px">📦</div>
+      <div class="order-qty" id="oq1">?</div>
+      <div class="order-lbl">Distributor<br>orders</div>
+    </div>
+    <div class="order-arr" id="oa1">
+      <div class="dir">← orders ←</div>
+      <svg viewBox="0 0 72 14" width="72" height="14">
+        <line x1="72" y1="7" x2="12" y2="7" stroke="#D97706" stroke-width="2.5" stroke-dasharray="5,3"/>
+        <polygon points="12,3 0,7 12,11" fill="#D97706"/>
+      </svg>
+    </div>
+    <div class="order-node r-whl" id="on2" style="background:linear-gradient(135deg,#059669,#047857)">
+      <div style="font-size:22px">🏪</div>
+      <div class="order-qty" id="oq2">?</div>
+      <div class="order-lbl">Wholesaler<br>orders</div>
+    </div>
+    <div class="order-arr" id="oa2">
+      <div class="dir">← orders ←</div>
+      <svg viewBox="0 0 72 14" width="72" height="14">
+        <line x1="72" y1="7" x2="12" y2="7" stroke="#D97706" stroke-width="2.5" stroke-dasharray="5,3"/>
+        <polygon points="12,3 0,7 12,11" fill="#D97706"/>
+      </svg>
+    </div>
+    <div class="order-node r-rtl" id="on3" style="background:linear-gradient(135deg,#D97706,#B45309)">
+      <div style="font-size:22px">🛍️</div>
+      <div class="order-qty" id="oq3">4</div>
+      <div class="order-lbl">Retailer<br>orders</div>
+    </div>
+    <div class="order-arr" id="oa3">
+      <div class="dir">← demand ←</div>
+      <svg viewBox="0 0 72 14" width="72" height="14">
+        <line x1="72" y1="7" x2="12" y2="7" stroke="#F59E0B" stroke-width="2.5" stroke-dasharray="5,3"/>
+        <polygon points="12,3 0,7 12,11" fill="#F59E0B"/>
+      </svg>
+    </div>
+    <div class="order-node" id="on4" style="background:linear-gradient(135deg,#FBBF24,#F59E0B);width:110px">
+      <div style="font-size:22px">👤</div>
+      <div class="order-qty">4</div>
+      <div class="order-lbl">Customer<br>demand</div>
+    </div>
+  </div>
+
+  <div id="s3b" style="margin-top:20px;opacity:0;transition:opacity 0.5s ease">
+    <p class="sub" style="font-size:19px;color:#92400E">
+      ⏳ Each upstream player receives the order <strong>one week later</strong>.<br>
+      By the time Manufacturer knows, the demand is already <strong>old news.</strong>
+    </p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     SLIDE 4  33–46s  Bullwhip Effect
+════════════════════════════════════════════════ -->
+<div class="slide" id="s4">
+  <h2>📈 A small demand shift becomes a <span class="red">huge swing</span> upstream.</h2>
+  <p class="sub">This is the <strong>Bullwhip Effect</strong> — the reason the Beer Game was invented.</p>
+
+  <div class="bw-wrap" id="bwwrap" style="margin-top:20px">
+
+    <div class="bw-col" id="bw3">
+      <div class="bw-bars" id="bars3">
+        <!-- bars filled by JS -->
+      </div>
+      <div class="bw-label">👤 Customer</div>
+      <div class="bw-sub">Demand changes from 4 → 8</div>
+    </div>
+
+    <div class="bw-col" id="bw2">
+      <div class="bw-bars" id="bars2"></div>
+      <div class="bw-label">🛍️ Retailer</div>
+      <div class="bw-sub">Panics slightly — orders extra buffer</div>
+    </div>
+
+    <div class="bw-col" id="bw1">
+      <div class="bw-bars" id="bars1"></div>
+      <div class="bw-label">🏪 Wholesaler</div>
+      <div class="bw-sub">Even more uncertainty — over-orders</div>
+    </div>
+
+    <div class="bw-col" id="bw0">
+      <div class="bw-bars" id="bars0"></div>
+      <div class="bw-label">📦 Distributor</div>
+      <div class="bw-sub">Huge swing — 4× demand volatility</div>
+    </div>
+
+  </div>
+
+  <div id="s4b" style="margin-top:16px;opacity:0;transition:opacity 0.5s ease">
+    <p style="font-size:16px;color:#92400E;text-align:center;font-weight:600">
+      🎯 Your job: <strong>resist the urge to over-order</strong> and keep the chain stable.
+    </p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     SLIDE 5  46–57s  Costs
+════════════════════════════════════════════════ -->
+<div class="slide" id="s5">
+  <h2>💰 Every decision has a <span class="amber">price.</span></h2>
+  <p class="sub">Whether you hold too much or too little, <strong>you pay.</strong> Your goal is to minimise total team cost.</p>
+
+  <div class="cost-row">
+    <div class="cost-card" id="cc0" style="border-top-color:#F59E0B">
+      <div class="cost-icon">📦</div>
+      <div class="cost-label">Holding cost</div>
+      <div class="cost-val amber">$0.50</div>
+      <div class="cost-desc">Per unit of <strong>inventory</strong> held at end of each week.<br>Too much stock ties up cash.</div>
+    </div>
+    <div class="cost-card" id="cc1" style="border-top-color:#DC2626">
+      <div class="cost-icon">⛔</div>
+      <div class="cost-label">Backlog cost</div>
+      <div class="cost-val red">$1.00</div>
+      <div class="cost-desc">Per unit of <strong>unmet demand</strong> carried as backlog.<br>Stockouts cost twice as much.</div>
+    </div>
+    <div class="cost-card" id="cc2" style="border-top-color:#2563EB">
+      <div class="cost-icon">🏆</div>
+      <div class="cost-label">Team score</div>
+      <div class="cost-val blue">Σ all</div>
+      <div class="cost-desc">All four roles' costs are <strong>added together.</strong> You win or lose as a team.</div>
+    </div>
+  </div>
+
+  <div id="s5b" style="margin-top:20px;background:#FEF3C7;border-radius:14px;padding:12px 32px;opacity:0;transition:opacity 0.5s ease">
+    <p style="font-size:16px;color:#78350F;font-weight:600;text-align:center">
+      ⚖️ Backlog costs <strong>2×</strong> more than holding — but an empty shelf also means disappointed customers.
+    </p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     SLIDE 6  57–62s  Title card
+════════════════════════════════════════════════ -->
+<div class="slide" id="s6">
+  <div class="title-wrap">
+    <div style="font-size:64px" class="beer-float">🍺</div>
+    <h1 style="color:#FFFBEB;font-size:66px;margin-top:8px">THE BEER GAME</h1>
+    <div class="tagline">Can your team beat the Bullwhip Effect?</div>
+    <div class="pill-row" style="margin-top:24px">
+      <div class="pill" id="p0">📅 13 rounds</div>
+      <div class="pill" id="p1">👥 4 roles per team</div>
+      <div class="pill" id="p2">📈 Bullwhip Effect</div>
+      <div class="pill" id="p3">💰 Minimise team cost</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const TOTAL = 62;
+
+// Bullwhip data: [week1..week8] orders, scaled to bar heights (px, max 170)
+const BW = {
+  // Customer demand: 4,4,4,4,8,8,8,8
+  3: [40,40,40,40,80,80,80,80],
+  // Retailer: slight amplification
+  2: [40,40,40,40,90,100,90,85],
+  // Wholesaler: more amplification
+  1: [40,40,40,50,110,130,110,90],
+  // Distributor: major amplification
+  0: [40,40,40,60,140,170,140,100],
+};
+const BW_COLORS = {0:'#2563EB',1:'#059669',2:'#D97706',3:'#FBBF24'};
+
+// Build bar elements
+[0,1,2,3].forEach(function(i){
+  var container = document.getElementById('bars'+i);
+  BW[i].forEach(function(h,w){
+    var bar = document.createElement('div');
+    bar.className='bw-bar';
+    bar.style.background = BW_COLORS[i];
+    bar.style.height = '0px';
+    bar.id = 'bar'+i+'_'+w;
+    container.appendChild(bar);
+  });
+});
+
+// ── Playback state ──
+var startedAt = null, paused = false, pauseStart = null, totalPaused = 0;
+var elapsed = 0, lastSlide = -1, raf = null;
+
+function getElapsed(){
+  if(!startedAt) return 0;
+  var base = (Date.now() - startedAt - totalPaused) / 1000;
+  return Math.min(base, TOTAL);
+}
+
+function startVideo(){
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('pause-btn').style.display='flex';
+  startedAt = Date.now(); totalPaused = 0;
+  tick();
+}
+
+function togglePause(){
+  if(!startedAt) return;
+  paused = !paused;
+  if(paused){
+    pauseStart = Date.now();
+    document.getElementById('pause-overlay').style.display='flex';
+    document.getElementById('pause-icon').textContent='▶';
+    document.getElementById('pause-text').textContent='Resume';
+    if(raf){cancelAnimationFrame(raf);raf=null;}
+  } else {
+    totalPaused += Date.now() - pauseStart;
+    document.getElementById('pause-overlay').style.display='none';
+    document.getElementById('pause-icon').textContent='⏸';
+    document.getElementById('pause-text').textContent='Pause';
+    tick();
+  }
+}
+
+function setSlide(n){
+  for(var i=1;i<=6;i++){
+    var el=document.getElementById('s'+i);
+    if(el) el.classList.toggle('active', i===n);
+  }
+}
+
+function s(id){ return document.getElementById(id); }
+function show(id){ var el=s(id); if(el){el.style.opacity='1';el.classList.add('show');} }
+function hide(id){ var el=s(id); if(el){el.style.opacity='0';el.classList.remove('show');} }
+
+// Slide actions keyed by time
+var actions = [
+  // Slide 1: 0–8s
+  {t:0.3,  fn:function(){ setSlide(1); }},
+  {t:0.8,  fn:function(){ s('r0').classList.add('pop'); }},
+  {t:1.2,  fn:function(){ s('c0').classList.add('show'); s('r1').classList.add('pop'); }},
+  {t:1.7,  fn:function(){ s('c1').classList.add('show'); s('r2').classList.add('pop'); }},
+  {t:2.2,  fn:function(){ s('c2').classList.add('show'); s('r3').classList.add('pop'); }},
+  {t:2.7,  fn:function(){ s('c3').classList.add('show'); s('r4').classList.add('pop'); }},
+  {t:4.5,  fn:function(){ show('s1b'); }},
+
+  // Slide 2: 8–20s
+  {t:8,    fn:function(){ setSlide(2); }},
+  {t:9.5,  fn:function(){ show('lt0'); }},
+  {t:11,   fn:function(){ show('lt1'); }},
+  {t:12.5, fn:function(){ show('lt2'); }},
+  {t:15,   fn:function(){ show('s2b'); }},
+
+  // Slide 3: 20–33s
+  {t:20,   fn:function(){ setSlide(3); }},
+  {t:20.5, fn:function(){ show('on4'); show('oa3'); }},
+  {t:22,   fn:function(){ show('on3'); s('oq3').textContent='4'; show('oa2'); }},
+  {t:23.5, fn:function(){ show('on2'); s('oq2').textContent='4'; show('oa1'); }},
+  {t:25,   fn:function(){ show('on1'); s('oq1').textContent='4'; show('oa0'); }},
+  {t:26.5, fn:function(){ show('on0'); s('oq0').textContent='4'; }},
+  {t:29,   fn:function(){ show('s3b'); }},
+
+  // Slide 4: 33–46s
+  {t:33,   fn:function(){ setSlide(4); }},
+  {t:34,   fn:function(){ show('bw3'); animBars(3, 0); }},
+  {t:36,   fn:function(){ show('bw2'); animBars(2, 200); }},
+  {t:38,   fn:function(){ show('bw1'); animBars(1, 400); }},
+  {t:40,   fn:function(){ show('bw0'); animBars(0, 600); }},
+  {t:43,   fn:function(){ show('s4b'); }},
+
+  // Slide 5: 46–57s
+  {t:46,   fn:function(){ setSlide(5); }},
+  {t:47,   fn:function(){ show('cc0'); }},
+  {t:48.5, fn:function(){ show('cc1'); }},
+  {t:50,   fn:function(){ show('cc2'); }},
+  {t:53,   fn:function(){ show('s5b'); }},
+
+  // Slide 6: 57–62s
+  {t:57,   fn:function(){ setSlide(6); }},
+  {t:57.8, fn:function(){ show('p0'); }},
+  {t:58.3, fn:function(){ show('p1'); }},
+  {t:58.8, fn:function(){ show('p2'); }},
+  {t:59.3, fn:function(){ show('p3'); }},
+];
+
+var fired = new Array(actions.length).fill(false);
+
+function animBars(colIdx, delayMs){
+  setTimeout(function(){
+    BW[colIdx].forEach(function(h,w){
+      setTimeout(function(){
+        var bar = s('bar'+colIdx+'_'+w);
+        if(bar) bar.style.height = h+'px';
+      }, w * 120);
+    });
+  }, delayMs);
+}
+
+function tick(){
+  elapsed = getElapsed();
+  var pct = Math.min(elapsed / TOTAL, 1);
+  var pb = document.getElementById('progress');
+  if(pb) pb.style.width = (pct*100)+'%';
+
+  // Fire actions
+  for(var i=0;i<actions.length;i++){
+    if(!fired[i] && elapsed >= actions[i].t){
+      fired[i]=true;
+      actions[i].fn();
+    }
+  }
+
+  if(elapsed < TOTAL){
+    raf = requestAnimationFrame(tick);
+  }
+}
+</script>
+</body>
+</html>
