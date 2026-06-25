@@ -1,7 +1,8 @@
 # Beer Game — Project Status
 
-**Last updated:** June 2026  
+**Last updated:** 24 June 2026  
 **Repo:** https://github.com/NarasimhaKamathB/Beer-game  
+**Vercel:** https://beer-game.vercel.app (or check Vercel dashboard for exact URL)  
 **Local path:** `C:\Users\narasimha.kamath\Documents\git\o9.Involve\beergame\`  
 **Stack:** Next.js 15 (App Router) · TypeScript · Tailwind CSS · Supabase (PostgreSQL + Realtime)  
 **Supabase project:** Separate from Cake Game — create a new project at supabase.com  
@@ -14,13 +15,15 @@ A multiplayer Beer Distribution Game simulation for classroom/workshop use. 4 pl
 
 ---
 
-## Current Status: ✅ Working locally
+## Current Status: ✅ Live on Vercel
 
-- Dev server: `cd beergame && npm run dev` → http://localhost:3000
+- Dev server: `npm run dev` → http://localhost:3000
 - All screens implemented and rendering correctly
 - Supabase schema + RPC deployed to a dedicated Beer Game Supabase project
-- Tutorial animation complete (`/tutorial.html`)
-- **Not yet pushed to GitHub or Vercel** — that is the next step from this session
+- Tutorial animation complete and wired into lobby (`/tutorial.html` via `TutorialModal.tsx`)
+- Stale session handling — home page verifies game existence before redirecting
+- **Pushed to GitHub:** https://github.com/NarasimhaKamathB/Beer-game
+- **Deployed to Vercel** with `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` env vars set
 
 ---
 
@@ -216,16 +219,39 @@ All keys cleared on stale session detection or "Play again" from results screen.
 - Observer projector view with live updates
 - Analytics: SVG charts per role (orders, inventory, backlog)
 - Leaderboard: ranks all ended games by total cost
-- Tutorial animation with pause/play
+- Tutorial animation (~62s, 6 slides) with pause/play, wired into lobby
 - Mobile-responsive layouts
-- Stale session handling (cleared localStorage → clean login)
+- Stale session handling (home page verifies game, clears localStorage if deleted)
+- TypeScript strict-mode clean (Vercel build passes)
+- GitHub repo: https://github.com/NarasimhaKamathB/Beer-game
+- Deployed to Vercel — auto-deploys on every push to `main`
 
-### 🔜 Next steps
-- Add tutorial button to results page
-- Push to GitHub: https://github.com/NarasimhaKamathB/Beer-game
-- Deploy to Vercel (connect repo, add env vars)
-- Add RLS policies before making public/production
-- Consider moving `processRound` to a Supabase Edge Function to eliminate any client-side race window
+### 🔜 Next steps (start here next session)
+- Add tutorial button/modal to the results page
+- End-to-end test with 4 human players across full 13 rounds
+- Verify Bullwhip Effect is visible in Analytics charts after a real game
+- Add RLS policies before making the Supabase project public/production
+- Consider moving `processRound` to a Supabase Edge Function to eliminate the client-side race window
+- Custom domain on Vercel (optional)
+
+---
+
+## Day Log — 25 June 2026
+
+Changes made this session (in order):
+
+| # | Change | Files |
+|---|---|---|
+| 1 | SQL migration — adds `admin_password` and `allow_self_start` columns to `session_settings` | `supabase/add_admin_password_self_start.sql` |
+| 2 | `SessionSettings` type — added `adminPassword: string` and `allowSelfStart: boolean` | `lib/types.ts` |
+| 3 | Supabase client — reads/writes both new fields | `lib/supabase.ts` |
+| 4 | Admin password gate — `/admin` shows a lock screen; correct password unlocks and caches auth in `sessionStorage` for the browser session; "Lock" button re-locks | `app/admin/page.tsx` |
+| 5 | Admin: allow self-start toggle — checkbox in Event Settings; updates Supabase immediately | `app/admin/page.tsx` |
+| 6 | Admin: change password field — lets facilitator update the admin password from within admin (after logging in) | `app/admin/page.tsx` |
+| 7 | Lobby: self-start card — when `allowSelfStart=true`, shows "▶ Start game now" button with bot-fill progress messages and a 💡 tooltip about 4 players / bots | `app/lobby/[gameId]/page.tsx` |
+| 8 | Lobby: messaging — header changes to "Ready to play?" vs "Waiting for game to start" based on self-start setting; empty-slot count shown dynamically | `app/lobby/[gameId]/page.tsx` |
+
+**Supabase migration required:** Run `supabase/add_admin_password_self_start.sql` in the Supabase SQL editor before deploying.
 
 ---
 
@@ -244,9 +270,30 @@ Observer: http://localhost:3000/observer
 
 ## Deploying to Vercel
 
-1. Push to GitHub (next step below).
-2. Import the repo in Vercel. Set root directory to `beergame`.
+Already live. For a fresh deployment (e.g. new Vercel account):
+
+1. Import https://github.com/NarasimhaKamathB/Beer-game in Vercel.
+2. Root directory: `/` (repo root is already the Next.js app).
 3. Add environment variables:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-4. Deploy. No build command changes needed — Next.js auto-detected.
+4. Deploy. Auto-deploys on every push to `main` thereafter.
+
+---
+
+## Day Log — 24 June 2026
+
+Changes made this session (in order):
+
+| # | Change | Files |
+|---|---|---|
+| 1 | Tutorial animation — 6-slide animated HTML (~62s), amber beer theme, pause/play, scaleToFit mobile | `public/tutorial.html` |
+| 2 | TutorialModal component — fullscreen iframe wrapper with "Got it ✓" close + Escape key | `components/TutorialModal.tsx` |
+| 3 | Wired tutorial into lobby — dark amber clickable banner replaces old placeholder | `app/lobby/[gameId]/page.tsx` |
+| 4 | Stale session fix — home page calls `getGame()` before redirecting; clears localStorage if game deleted/ended | `app/page.tsx` |
+| 5 | Lobby "game not found" — clears localStorage automatically, shows friendly "Session expired" screen | `app/lobby/[gameId]/page.tsx` |
+| 6 | Smart redirect on home — routes to `/game/[id]` if ordering/summary, `/results/[id]` if ended | `app/page.tsx` |
+| 7 | Wrote STATUS.md — full project context document for future sessions | `STATUS.md` |
+| 8 | GitHub push — deleted old repo, recreated clean, pushed local code to `main` | git |
+| 9 | Vercel deployment — connected GitHub repo, added env vars, deployed | Vercel |
+| 10 | TypeScript build fix — `cfg as unknown as Record<string, unknown>` to satisfy strict mode | `app/admin/page.tsx` |

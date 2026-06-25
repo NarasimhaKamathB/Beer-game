@@ -11,6 +11,13 @@ import ObserverDashboard from '../../components/ObserverDashboard';
 
 export default function AdminPage() {
   const router = useRouter();
+
+  // ── Auth gate ──────────────────────────────────────────────────────────────
+  const [authed,  setAuthed]  = useState(false);
+  const [pwInput, setPwInput] = useState('');
+  const [pwError, setPwError] = useState('');
+
+  // ── Data ───────────────────────────────────────────────────────────────────
   const [games,    setGames]    = useState<Game[]>([]);
   const [settings, setSettings] = useState<SessionSettings | null>(null);
   const [loading,  setLoading]  = useState(true);
@@ -22,6 +29,11 @@ export default function AdminPage() {
   const [demandInput, setDemandInput] = useState(DEFAULT_CONFIG.demandSchedule.join(', '));
 
   useEffect(() => {
+    // Check cached auth immediately (same browser session)
+    if (typeof window !== 'undefined' && sessionStorage.getItem('beergame_admin_authed') === 'true') {
+      setAuthed(true);
+    }
+
     Promise.all([getAllGames(), getSessionSettings()]).then(([gs, s]) => {
       setGames(gs);
       setSettings(s);
@@ -34,17 +46,30 @@ export default function AdminPage() {
     return unsub;
   }, []);
 
-  // Parse demand input → number[]
+  function handlePasswordSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const correct = settings?.adminPassword ?? 'beergame2026';
+    if (pwInput.trim() === correct) {
+      sessionStorage.setItem('beergame_admin_authed', 'true');
+      setAuthed(true);
+      setPwError('');
+    } else {
+      setPwError('Incorrect password. Please try again.');
+    }
+  }
+
+  // ── Config helpers ─────────────────────────────────────────────────────────
   function parsedDemand(): number[] | null {
     const vals = demandInput.split(',').map(s => parseInt(s.trim(), 10));
     if (vals.some(isNaN)) return null;
     return vals;
   }
 
-  const demand       = parsedDemand();
-  const demandOk     = demand !== null && demand.length === cfg.totalRounds;
-  const startingInv  = demand ? 3 * demand[0] : '—';
+  const demand      = parsedDemand();
+  const demandOk    = demand !== null && demand.length === cfg.totalRounds;
+  const startingInv = demand ? 3 * demand[0] : '—';
 
+  // ── Actions ────────────────────────────────────────────────────────────────
   async function handleStartAll() {
     setSaving(true);
     try { await startAllGames(); setMsg('All games started!'); }
@@ -77,7 +102,9 @@ export default function AdminPage() {
       const newCfg: GameConfig = { ...cfg, demandSchedule: demand! };
       await updateSessionSettings({
         registrationOpen: settings?.registrationOpen ?? true,
-        eventName:        settings?.eventName ?? 'Beer Game',
+        eventName:        settings?.eventName        ?? 'Beer Game',
+        adminPassword:    settings?.adminPassword    ?? 'beergame2026',
+        allowSelfStart:   settings?.allowSelfStart   ?? true,
         gameConfig:       newCfg,
       });
       setCfg(newCfg);
@@ -91,6 +118,27 @@ export default function AdminPage() {
     const next = !settings.registrationOpen;
     setSettings(s => s ? { ...s, registrationOpen: next } : s);
     await updateSessionSettings({ registrationOpen: next });
+  }
+
+  async function handleToggleSelfStart() {
+    if (!settings) return;
+    const next = !settings.allowSelfStart;
+    setSettings(s => s ? { ...s, allowSelfStart: next } : s);
+    await updateSessionSettings({ allowSelfStart: next });
+    setMsg(`Self-start ${next ? 'enabled' : 'disabled'}.`);
+  }
+
+  async function handleSavePassword() {
+    const trimmed = pwInput.trim();
+    if (!trimmed) { setMsg('Password cannot be empty.'); return; }
+    setSaving(true);
+    try {
+      await updateSessionSettings({ adminPassword: trimmed });
+      setSettings(s => s ? { ...s, adminPassword: trimmed } : s);
+      setMsg('Admin password updated.');
+      setPwInput('');
+    } catch (e) { setMsg(String(e)); }
+    finally { setSaving(false); }
   }
 
   function numField(key: keyof GameConfig, label: string, step = 1, min = 0) {
@@ -107,10 +155,50 @@ export default function AdminPage() {
     );
   }
 
+  // ── Loading spinner ────────────────────────────────────────────────────────
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center"><Spinner className="w-8 h-8 text-amber-400" /></div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Spinner className="w-8 h-8 text-amber-400" />
+      </div>
+    );
   }
 
+  // ── Password gate ──────────────────────────────────────────────────────────
+  if (!authed) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50 flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <div className="text-5xl mb-3">🔐</div>
+            <h1 className="text-2xl font-extrabold text-gray-900">Admin Panel</h1>
+            <p className="text-sm text-gray-500 mt-1">Enter the admin password to continue.</p>
+          </div>
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+            <form onSubmit={handlePasswordSubmit} className="flex flex-col gap-4">
+              <Input
+                label="Password"
+                type="password"
+                placeholder="••••••••••••"
+                value={pwInput}
+                onChange={e => setPwInput(e.target.value)}
+                autoFocus
+              />
+              {pwError && <p className="text-sm text-red-600 -mt-2">{pwError}</p>}
+              <Button type="submit" size="lg" className="w-full">
+                Unlock →
+              </Button>
+            </form>
+          </div>
+          <p className="text-center mt-4 text-xs text-gray-400">
+            <a href="/" className="underline hover:text-gray-600">← Back to player view</a>
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  // ── Full admin ─────────────────────────────────────────────────────────────
   const inLobby = games.filter(g => ['lobby', 'onboarding'].includes(g.state?.phase));
   const active  = games.filter(g => !['ended'].includes(g.state?.phase));
   const ended   = games.filter(g => g.state?.phase === 'ended');
@@ -122,10 +210,19 @@ export default function AdminPage() {
           <span className="text-2xl">🍺</span>
           <h1 className="text-lg font-bold text-gray-900">Admin Panel</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Badge color={settings?.registrationOpen ? 'green' : 'red'}>
             {settings?.registrationOpen ? 'Registration open' : 'Registration closed'}
           </Badge>
+          <Badge color={settings?.allowSelfStart ? 'blue' : 'gray'}>
+            {settings?.allowSelfStart ? 'Self-start on' : 'Self-start off'}
+          </Badge>
+          <button
+            onClick={() => { sessionStorage.removeItem('beergame_admin_authed'); setAuthed(false); }}
+            className="text-xs text-gray-400 hover:text-gray-600 underline ml-1"
+          >
+            Lock
+          </button>
           <a href="/" className="text-sm text-gray-500 hover:text-gray-700 underline">Player view</a>
         </div>
       </header>
@@ -170,12 +267,54 @@ export default function AdminPage() {
         {/* Event settings */}
         <Card className="p-5">
           <h2 className="font-semibold text-gray-800 mb-4">Event settings</h2>
-          <div className="max-w-sm">
+          <div className="flex flex-col gap-4 max-w-sm">
             <Input
               label="Event name"
               value={settings?.eventName ?? ''}
               onChange={e => setSettings(s => s ? { ...s, eventName: e.target.value } : s)}
             />
+
+            {/* Self-start toggle */}
+            <div className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 bg-gray-50">
+              <input
+                type="checkbox"
+                id="allowSelfStart"
+                checked={settings?.allowSelfStart ?? true}
+                onChange={handleToggleSelfStart}
+                className="mt-0.5 w-4 h-4 rounded accent-amber-500"
+              />
+              <div>
+                <label htmlFor="allowSelfStart" className="text-sm font-semibold text-gray-700 cursor-pointer">
+                  Allow players to self-start
+                </label>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  When enabled, any player in the lobby can start their game without waiting for you.
+                  Bots automatically fill empty slots. <span className="text-amber-600 font-medium">Recommended: on.</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Admin password change */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                Change admin password
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="New password"
+                  value={pwInput}
+                  onChange={e => setPwInput(e.target.value)}
+                  className="flex-1 h-10 px-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                />
+                <Button size="sm" onClick={handleSavePassword} disabled={saving || !pwInput.trim()}>
+                  Save
+                </Button>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                Stored in Supabase session_settings. Current default: beergame2026.
+              </p>
+            </div>
           </div>
         </Card>
 

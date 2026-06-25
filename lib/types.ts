@@ -115,6 +115,10 @@ export interface SessionSettings {
   registrationOpen: boolean;
   gameConfig: GameConfig | null;
   eventName: string;
+  /** Password required to access /admin. Default: 'beergame2026'. Stored in session_settings. */
+  adminPassword: string;
+  /** When true, any player in the lobby can start their own game without admin action. */
+  allowSelfStart: boolean;
 }
 
 // ─── Labels & metadata ───────────────────────────────────────────────────────

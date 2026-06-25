@@ -83,11 +83,13 @@ export function subscribeToAllGames(cb: (games: Game[]) => void): () => void {
 
 export async function getSessionSettings(): Promise<SessionSettings> {
   const { data } = await supabase.from('session_settings').select('*').eq('id', 1).single();
-  if (!data) return { registrationOpen: true, gameConfig: null, eventName: 'Beer Game' };
+  if (!data) return { registrationOpen: true, gameConfig: null, eventName: 'Beer Game', adminPassword: 'beergame2026', allowSelfStart: true };
   return {
     registrationOpen: data.registration_open,
-    gameConfig:       data.game_config ?? null,
-    eventName:        data.event_name  ?? 'Beer Game',
+    gameConfig:       data.game_config      ?? null,
+    eventName:        data.event_name       ?? 'Beer Game',
+    adminPassword:    data.admin_password   ?? 'beergame2026',
+    allowSelfStart:   data.allow_self_start ?? true,
   };
 }
 
@@ -96,6 +98,8 @@ export async function updateSessionSettings(s: Partial<SessionSettings>): Promis
   if (s.registrationOpen !== undefined) patch.registration_open = s.registrationOpen;
   if (s.gameConfig        !== undefined) patch.game_config       = s.gameConfig;
   if (s.eventName         !== undefined) patch.event_name        = s.eventName;
+  if (s.adminPassword     !== undefined) patch.admin_password    = s.adminPassword;
+  if (s.allowSelfStart    !== undefined) patch.allow_self_start  = s.allowSelfStart;
   await supabase.from('session_settings').upsert({ id: 1, ...patch });
 }
 
