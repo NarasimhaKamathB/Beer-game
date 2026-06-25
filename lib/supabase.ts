@@ -112,8 +112,10 @@ export function subscribeToSessionSettings(cb: (s: SessionSettings) => void): ()
           const r = payload.new as Record<string, unknown>;
           cb({
             registrationOpen: r.registration_open as boolean,
-            gameConfig:       (r.game_config as GameConfig | null) ?? null,
-            eventName:        (r.event_name  as string) ?? 'Beer Game',
+            gameConfig:       (r.game_config      as GameConfig | null) ?? null,
+            eventName:        (r.event_name        as string) ?? 'Beer Game',
+            adminPassword:    (r.admin_password    as string) ?? 'beergame2026',
+            allowSelfStart:   (r.allow_self_start  as boolean) ?? true,
           });
         }
       },
