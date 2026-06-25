@@ -73,16 +73,23 @@ beergame/
 ## Supabase Setup (run once per new project)
 
 1. Create a **new Supabase project** (separate from Cake Game — same table names would clash).
-2. In **SQL Editor → New query**, run `supabase/schema.sql`.
-3. Run `supabase/assign_player_atomic.sql`.
-4. Copy your project URL and anon key into `.env.local`:
+2. In **SQL Editor → New query**, run each file in this order:
+
+| Order | File | Purpose |
+|---|---|---|
+| 1 | `supabase/schema.sql` | Creates `games` + `session_settings` tables, enables Realtime |
+| 2 | `supabase/assign_player_atomic.sql` | Concurrent-safe player login RPC |
+| 3 | `supabase/add_admin_password_self_start.sql` | Adds `admin_password` + `allow_self_start` columns |
+| 4 | `supabase/cleanup_ended_games_trigger.sql` | Auto-deletes oldest ended games when count > 25 |
+
+3. Copy your project URL and anon key into `.env.local`:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 ```
 
-5. In Supabase **Database → Replication**, confirm `games` and `session_settings` are enabled under `supabase_realtime`.
+4. In Supabase **Database → Replication**, confirm `games` and `session_settings` are enabled under `supabase_realtime`.
 
 ---
 
@@ -216,12 +223,17 @@ All keys cleared on stale session detection or "Play again" from results screen.
 - Autonomous timer progression (game never halts even if players go idle)
 - Bot players fill any empty role on game start
 - Admin: per-game ▶ Start, pause/resume, skip summary, fill bots, reset
+- Admin: password gate (default `beergame2026`, stored in Supabase, changeable from admin UI); cached in `sessionStorage` for the browser session; "Lock" button to re-lock
+- Admin: per-game 🗑 delete button with confirmation dialog
+- Admin: `allowSelfStart` toggle — enables/disables player self-start from lobby
+- Lobby: self-start card — "▶ Start game now" button when `allowSelfStart=true`; shows bot-fill progress messages and 💡 tooltip about 4 players / bots
 - Observer projector view with live updates
 - Analytics: SVG charts per role (orders, inventory, backlog)
 - Leaderboard: ranks all ended games by total cost
 - Tutorial animation (~62s, 6 slides) with pause/play, wired into lobby
 - Mobile-responsive layouts
 - Stale session handling (home page verifies game, clears localStorage if deleted)
+- Postgres trigger `trg_cleanup_ended_games`: auto-deletes oldest ended game when count exceeds 25 (FIFO, active games never touched)
 - TypeScript strict-mode clean (Vercel build passes)
 - GitHub repo: https://github.com/NarasimhaKamathB/Beer-game
 - Deployed to Vercel — auto-deploys on every push to `main`
@@ -252,6 +264,19 @@ Changes made this session (in order):
 | 8 | Lobby: messaging — header changes to "Ready to play?" vs "Waiting for game to start" based on self-start setting; empty-slot count shown dynamically | `app/lobby/[gameId]/page.tsx` |
 
 **Supabase migration required:** Run `supabase/add_admin_password_self_start.sql` in the Supabase SQL editor before deploying.
+
+---
+
+## Day Log — 25 June 2026 (continued)
+
+| # | Change | Files |
+|---|---|---|
+| 9 | `deleteGame(gameId)` — new Supabase function to delete a single game | `lib/supabase.ts` |
+| 10 | Per-game 🗑 delete button in admin Games list — confirm dialog before deleting | `app/admin/page.tsx` |
+| 11 | Postgres trigger `trg_cleanup_ended_games` — fires on every game UPDATE; if phase just became 'ended' and total ended games > 25, deletes oldest ended game(s) until 25 remain. Active/lobby games never touched. | `supabase/cleanup_ended_games_trigger.sql` |
+| 12 | Build fix — `subscribeToSessionSettings` callback missing `adminPassword` + `allowSelfStart` fields | `lib/supabase.ts` |
+
+**Additional Supabase step required:** Run `supabase/cleanup_ended_games_trigger.sql` in Supabase SQL Editor to install the auto-cleanup trigger.
 
 ---
 
