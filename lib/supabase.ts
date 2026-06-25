@@ -333,6 +333,11 @@ export async function resetGameFull(gameId: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+export async function deleteGame(gameId: string): Promise<void> {
+  const { error } = await supabase.from('games').delete().eq('id', gameId);
+  if (error) throw new Error(error.message);
+}
+
 export async function deleteAllGames(): Promise<void> {
   await supabase.from('games').delete().neq('id', '');
 }

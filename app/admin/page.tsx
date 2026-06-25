@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   getAllGames, getSessionSettings, updateSessionSettings,
-  startAllGames, startSingleGame, deleteAllGames, subscribeToAllGames,
+  startAllGames, startSingleGame, deleteAllGames, deleteGame, subscribeToAllGames,
 } from '../../lib/supabase';
 import { Game, SessionSettings, GameConfig, DEFAULT_CONFIG } from '../../lib/types';
 import { Button, Card, Badge, Input, Spinner } from '../../components/ui';
@@ -80,6 +80,14 @@ export default function AdminPage() {
   async function handleStartOne(gameId: string, teamName: string) {
     setSaving(true);
     try { await startSingleGame(gameId); setMsg(`${teamName} started!`); }
+    catch (e) { setMsg(String(e)); }
+    finally { setSaving(false); }
+  }
+
+  async function handleDeleteOne(gameId: string, teamName: string) {
+    if (!confirm(`Delete ${teamName}? This cannot be undone.`)) return;
+    setSaving(true);
+    try { await deleteGame(gameId); setMsg(`${teamName} deleted.`); }
     catch (e) { setMsg(String(e)); }
     finally { setSaving(false); }
   }
@@ -418,6 +426,15 @@ export default function AdminPage() {
                       )}
                       <Button size="sm" variant="secondary" onClick={() => router.push(`/admin/game/${g.id}`)}>
                         Manage →
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => handleDeleteOne(g.id, teamName)}
+                        disabled={saving}
+                        title="Delete this game"
+                      >
+                        🗑
                       </Button>
                     </div>
                   </div>
