@@ -6,6 +6,7 @@ import { Spinner, Button } from '../../../components/ui';
 import GameResults from '../../../components/GameResults';
 import Analytics from '../../../components/Analytics';
 import Leaderboard from '../../../components/Leaderboard';
+import TutorialModal from '../../../components/TutorialModal';
 
 export default function ResultsPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId }     = use(params);
@@ -14,8 +15,9 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
   const [loading, setLoading] = useState(true);
   const [tab, setTab]       = useState<'results' | 'analytics' | 'leaderboard'>('results');
 
-  const [myRole,   setMyRole]   = useState('');
-  const [myGameId, setMyGameId] = useState('');
+  const [myRole,       setMyRole]       = useState('');
+  const [myGameId,     setMyGameId]     = useState('');
+  const [showTutorial, setShowTutorial] = useState(false);
 
   useEffect(() => {
     setMyRole(localStorage.getItem('beergame_role') ?? '');
@@ -76,8 +78,26 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
         {tab === 'analytics'   && <Analytics game={game} />}
         {tab === 'leaderboard' && <Leaderboard games={allGames} myGameId={myGameId} />}
 
+        {/* Tutorial replay */}
+        <button
+          onClick={() => setShowTutorial(true)}
+          className="w-full mt-6 rounded-2xl overflow-hidden border border-amber-200 bg-gradient-to-br from-amber-900 to-yellow-950 hover:brightness-110 transition-all group"
+        >
+          <div className="flex items-center gap-4 px-6 py-5">
+            <div className="w-12 h-12 shrink-0 rounded-full bg-amber-400/20 border-2 border-amber-300/50 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <svg className="w-5 h-5 text-amber-200 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+            </div>
+            <div className="text-left">
+              <p className="text-amber-100 font-bold text-sm">▶ Re-watch Tutorial</p>
+              <p className="text-amber-300/70 text-xs mt-0.5">Revisit the Bullwhip Effect — see what happened in your game</p>
+            </div>
+          </div>
+        </button>
+
         {/* Actions */}
-        <div className="flex gap-3 justify-center mt-8">
+        <div className="flex gap-3 justify-center mt-6">
           <Button variant="secondary" onClick={() => {
             localStorage.removeItem('beergame_game_id');
             localStorage.removeItem('beergame_player_id');
@@ -91,6 +111,8 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
           </Button>
         </div>
       </div>
+
+      {showTutorial && <TutorialModal onClose={() => setShowTutorial(false)} />}
     </main>
   );
 }
