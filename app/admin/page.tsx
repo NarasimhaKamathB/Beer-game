@@ -4,7 +4,9 @@ import { useRouter } from 'next/navigation';
 import {
   getAllGames, getSessionSettings, updateSessionSettings,
   startAllGames, startSingleGame, deleteAllGames, deleteGame, subscribeToAllGames,
+  submitBotOrdersAndProcess, advanceToNextRound, recoverStuckGame,
 } from '../../lib/supabase';
+import { processRound } from '../../lib/gameLogic';
 import { Game, SessionSettings, GameConfig, DEFAULT_CONFIG } from '../../lib/types';
 import { Button, Card, Badge, Input, Spinner } from '../../components/ui';
 import ObserverDashboard from '../../components/ObserverDashboard';
@@ -57,6 +59,47 @@ export default function AdminPage() {
       setPwError('Incorrect password. Please try again.');
     }
   }
+
+  // ── Watchdog: advance any overdue game even if no player tab is open ──────
+  useEffect(() => {
+    if (!authed) return;
+    const interval = setInterval(async () => {
+      const gs  = await getAllGames();
+      const now = Date.now();
+      for (const g of gs) {
+        const { state, config } = g;
+        if (state.paused || state.phase === 'ended' ||
+            state.phase === 'lobby' || state.phase === 'onboarding') continue;
+
+        const frozenMs = (state.totalPausedMs || 0);
+
+        // Ordering phase overdue → fill bots and process
+        if (state.phase === 'ordering' && state.roundStartedAt) {
+          const elapsed = (now - state.roundStartedAt - frozenMs) / 1000;
+          if (elapsed >= config.orderTimerSeconds + 5) {
+            submitBotOrdersAndProcess(g.id, processRound).catch(console.error);
+          }
+        }
+
+        // Summary phase overdue → advance to next round
+        if (state.phase === 'summary' && state.summaryStartedAt && config.autoAdvanceSummary) {
+          const elapsed = (now - state.summaryStartedAt - frozenMs) / 1000;
+          if (elapsed >= config.summaryTimerSeconds + 5) {
+            advanceToNextRound(g.id).catch(console.error);
+          }
+        }
+
+        // Stuck in processing (crashed mid-write) → recover
+        if (state.phase === 'processing' && state.roundStartedAt) {
+          const elapsed = (now - state.roundStartedAt - frozenMs) / 1000;
+          if (elapsed >= config.orderTimerSeconds + 20) {
+            recoverStuckGame(g.id, processRound).catch(console.error);
+          }
+        }
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [authed]);
 
   // ── Config helpers ─────────────────────────────────────────────────────────
   function parsedDemand(): number[] | null {
@@ -225,6 +268,10 @@ export default function AdminPage() {
           <Badge color={settings?.allowSelfStart ? 'blue' : 'gray'}>
             {settings?.allowSelfStart ? 'Self-start on' : 'Self-start off'}
           </Badge>
+          <span className="flex items-center gap-1 text-xs text-green-600 font-medium" title="Admin watchdog is active — games advance automatically while this page is open">
+            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse inline-block" />
+            Watchdog active
+          </span>
           <button
             onClick={() => { sessionStorage.removeItem('beergame_admin_authed'); setAuthed(false); }}
             className="text-xs text-gray-400 hover:text-gray-600 underline ml-1"

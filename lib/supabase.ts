@@ -333,6 +333,32 @@ export async function resetGameFull(gameId: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Recovery for games stuck in 'processing' phase.
+ * This happens when a client wrote phase='processing' but crashed before
+ * writing the computed 'summary' state. Re-runs processRound from the
+ * existing orders already recorded in roles[r].outgoingOrder.
+ */
+export async function recoverStuckGame(
+  gameId: string,
+  processRoundFn: (state: GameState, config: GameConfig, orders: Record<Role, number>) => GameState,
+): Promise<void> {
+  const game = await getGame(gameId);
+  if (!game || game.state.phase !== 'processing') return;
+
+  const roles = game.state.roles;
+  const orders = {
+    retailer:     roles.retailer?.outgoingOrder     ?? 0,
+    wholesaler:   roles.wholesaler?.outgoingOrder   ?? 0,
+    distributor:  roles.distributor?.outgoingOrder  ?? 0,
+    manufacturer: roles.manufacturer?.outgoingOrder ?? 0,
+  } as Record<Role, number>;
+
+  const newState = processRoundFn(game.state, game.config, orders);
+  if (newState.phase === 'summary') newState.summaryStartedAt = Date.now();
+  await updateFullGameState(gameId, newState);
+}
+
 export async function deleteGame(gameId: string): Promise<void> {
   const { error } = await supabase.from('games').delete().eq('id', gameId);
   if (error) throw new Error(error.message);
